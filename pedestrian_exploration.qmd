@@ -1,0 +1,520 @@
+---
+title: "Assignment2"
+author: "Dylan Forde"
+format: pdf
+editor: visual
+---
+
+### Assignment 2
+
+```{r}
+#| label: "Libraries"
+#| warning: false
+#| output: false
+
+library(dplyr)
+library(lubridate)
+library(forcats)
+library(skimr)
+library(ggplot2)
+library(kableExtra)
+```
+
+### Task 1: Manipulation
+
+#### Task 1 Section 1
+
+Load the data set `pedestrian_2023.csv`, save it as a tibble. use a function from `dplyr` to remove the columns with a column name ending with 'IN' or 'OUT'. What is the size of this data set?
+
+```{r}
+#| label: "1.1"
+
+# read the csv from the local file, automatically convert to tibble
+pedestrian <- as_tibble(read.csv("./pedestrian_2023.csv"))
+# check to ensure it is saved as a tibble (this shows as list)
+print(c("The type of the data set: ",typeof(pedestrian)), quote=FALSE)
+# saved as tibble (shows as list due to tibble being list)
+
+# select the columns from the data set that do NOT end with 'in' or 'out'
+pedestrian_dated <- pedestrian %>%
+  select(-ends_with(c("IN", "OUT")))
+
+# Dimensions in the data set, 8760 rows, 27 columns
+print(dim(pedestrian_dated), quote=FALSE)
+```
+
+There are 8760 rows across 27 columns. We load in the data set using the utils function `read.csv()`, and immediately convert this to the tibble type. We print out the type of the data set to ensure that it is actually now the tibble type. We then remove the columns that end in either the word 'in' or 'out'. We check the dimensions of the new data set.
+
+#### Task 1 Section 2
+
+Write some code to check that the variable `Time` is stored using an appropriate class for a date, and the other variables are numeric, fix them if they are not.
+
+```{r}
+#| label: "1.2"
+
+# check type
+typeof(pedestrian_dated$Time)
+# type is character, use lubridate mentioned in lectures to make POSIXt
+
+# convert time column to the correct version
+pedestrian_dated <- pedestrian_dated %>%
+  mutate(Time = dmy_hm(Time))
+# check to make sure it is in POSIXt format, also viewed the data set to check
+is.POSIXt(pedestrian_dated$Time)
+
+sapply(pedestrian_dated[,2:27], is.numeric)
+```
+
+We check the type of the the time column using the `typeof()` function, we see that it is a character type so next we decide to overwrite the time column with the POSIXt time using the lubridate library. We double check to ensure that it is now the right data type. Use `sapply()` to see if the rest of the columns in the tibble are numeric.
+
+#### Task 1 Section 3
+
+Load the data set `weather_2023.txt`, save it as a tibble. Give meaningful names to the variables related to the weather. What is the size of this data set?
+
+```{r}
+#| label: "1.3"
+
+# Load the data set
+weather <- as_tibble(read.delim("./weather_2023.txt"))
+# check to ensure it is saved as a tibble (this shows as list)
+print(c("The type of the data set: ",typeof(weather)), quote=FALSE)
+# saved as tibble (shows as list due to tibble being list)
+
+# rename variables relating to variables to make more sense
+names(weather) <- c("Time", #stays the same
+                    "precipitation_amount", #changes from rain
+                    "air_temperature", #changes from temp
+                    "wind_speed", #changes form wdsp
+                    "cloud_factor") #changes from clamt
+
+# Dimensions: 8760 rows, 5 columns
+print(dim(weather), quote = FALSE)
+
+
+```
+
+There are 8760 rows across 5 columns. We do the same as previously with the weather data set, except we use the `read.delim()` function as it is a .txt file. We again immediately cast this to the tibble type to ensure that ran correctly. We are asked to rename the columns to be more meaningful, so we rename them to be a more informative representation of what they are. We are not overly concerned about units. We then check the dimensions of the data set.
+
+#### Task 1 Section 4
+
+Convert the variable containing the cloud amount information into an ordered factor. Print the levels and the output of a check to confirm it's ordered.
+
+```{r}
+#| label: "1.4"
+
+# changes the cloud factor from integer range 0-8 to regular factor
+weather $cloud_factor <- as_factor(weather$cloud_factor)
+# changes the factor from unordered to ordered
+weather$cloud_factor <- fct_inseq(weather$cloud_factor, ordered = TRUE)
+
+# ordered factor with 9 levels 0 < 1 < 2 < etc.
+str(weather$cloud_factor, strict.width="wrap")
+```
+
+We want to change the `cloud_factor` column do an ordered factor. We first use the forcats function `as_factor()`, and then after use the `fct_inseq()` function with the parameter `ordered=TRUE` so that it knows the sequence of factors should be ordered from lowest to highest. We check the structure of the factor to ensure it is ordered.
+
+#### Task 1 Section 5
+
+Use the function `skim_without_charts()` from the package `skimr` on this weather data set, and briefly explain in your own words what the function is doing.
+
+```{r}
+#| label: "1.5"
+
+# skim without charts, gives you a brief glance of information
+print(skim_without_charts(weather))
+```
+
+An alternative to the `summary` function. It gives a broad overview of the tibble or data frame. Giving summary statistics for each types of columns. The regular one has spark graphics, but `skim_without_charts` is without the spark graphics.
+
+#### Task 1 Section 6
+
+Check that the variable `Time` in the weather data set is of an appropriate class for a date (fix it if it is not), and confirm that the range of `Time` in the two data sets are the same.
+
+```{r}
+#| label: "1.6"
+
+# check the type
+typeof(weather$Time)
+# type is character, use lubridate mentioned in lectures to make POSIXt
+
+# convert time column to the correct version
+weather_dated <- weather %>%
+  mutate(Time = ymd_hms(Time))
+# check to make sure it is in POSIXt format, also viewed the data set to check
+is.POSIXt(weather_dated$Time)
+
+print(range.Date(weather$Time))
+print(range.Date(pedestrian$Time))
+
+```
+
+We do the same checks for the `Time` column as for the previous data set, we see it is also of type character. We overwrite the old time column with the lubridate function in order to have it of type POSIXt, which we double check for correctness. I confirmed the range of time of the data sets by using the built in `range.Date()` function.
+
+#### Task 1 Section 7
+
+Join the two data sets. what is the size of the data set?
+
+```{r}
+#| label: "1.7.1"
+
+# Try joining after timezone standardization
+joined_data <- inner_join(weather_dated, pedestrian_dated, by = "Time")
+dim(joined_data)
+# There are 8760 rows and 31 columns.
+
+```
+
+The size of the data set is 8760 rows and 31 columns. We use the function `inner_join` to join the data sets on the column "Time", we ensure that all columns and rows were kept by checking the dimensions of the new data set. We don't bother converting the formats of dates to be the same as that automatically happens when joined on time. It is nice that it automatically converts and recognizes formats.
+
+#### Task 1 Section 8
+
+Add two columns, one containing the name of the day of the week and the other the month of the year. Check that these two columns are ordered factors.
+
+```{r}
+#| label: "1.8"
+# first of january 2023 is a sunday, so that is the seventh day of the week
+# day of the week -> factor -> ordered factor
+joined_data$dotw <- fct_inseq(
+  as_factor(
+    wday(
+      joined_data$Time,
+      week_start = getOption("lubridate.week.start", 1))
+    ), ordered = TRUE)
+
+# shows it is an ordered factor with 7 levels 
+str(joined_data$dotw)
+
+# month of the year -> factor -> ordered factor
+joined_data$moty <- fct_inseq(
+  as_factor(
+    month(
+      joined_data$Time
+    )
+  ), ordered = TRUE)
+
+# shows it is an ordered factor with 12 levels
+str(joined_data$moty)
+```
+
+We create a new column `doty` for day of the week, and `moty` for month of the year. The code is the same other than that. I did not do it all in one pipeline as it is more readable to see them done separately. We use the same functions as we did to make the cloud column to be ordinal factors. Namely `as_factor()` and `fct_inseq()` with the ordered parameter as True. We double check the structure of the factors to ensure correctness.
+
+#### Task 1 Section 9
+
+Use `dplyr::relocate()` to put the new columns with the month and the day of the week as the second and third columns in the data set. Print the column names.
+
+```{r}
+#| label: "1.9"
+
+joined_data <- joined_data %>%
+  relocate(c(moty, dotw), .after = Time)
+
+names(joined_data)
+
+```
+
+We use the `dplyr` function `relocate` to move the `moty`and `dotw` columns into their respective positions. We double check this is correct by using the `names()` function to see all of the column names.
+
+### Task 2: Analysis
+
+#### Task 2 Section 1
+
+Use functions from base R to compute which months had the highest and the lowest overall pedestrian traffic (i.e. total pedestrian traffic in all locations in the whole month).
+
+```{r}
+#| label: "2.1"
+
+# built in rowsum, use the month of the year as the grouping
+# subset down to columns eight to thirty three
+pedestrian_traffic_total <- rowsum(joined_data[,8:33],
+                                   group = joined_data$moty, 
+                                   na.rm = TRUE)
+# regular rowsum now for each month across all the columns
+pedestrian_traffic_total$TotalSum <- rowSums(pedestrian_traffic_total)
+# take only the total sum column now
+pedestrian_traffic_total <- pedestrian_traffic_total[27]
+# add months column so we keep track after the sorting
+months_vec <- seq(1:12)
+sorted_dataset <- cbind(months_vec, pedestrian_traffic_total)
+# sort by the total sum, look at the months at the bottom and top
+sorted_dataset <- sort_by(sorted_dataset,
+                          list(pedestrian_traffic_total$TotalSum))
+# June is the lowest pedestrian month
+# Jan is the highest pedestrian month
+print("Lowest Footfall Month and Total footfall", quote=FALSE)
+paste0(sorted_dataset[1,])
+print("Highest Footfall Month and Total footfall", quote=FALSE)
+paste0(sorted_dataset[12,])
+```
+
+June is the lowest footfall month, with total footfall 15128010, while Jan is the highest footfall month with 25002430 total footfall.
+
+We are able to use the built in functions `rowsum` and `rowSums` to compute what we are looking for. First we calculate the row sum using the month of the year as the group, we set the removal of NA values in order to deal with any problems that might occur from keeping them in. Notably, we subset the data frame to only columns 8 to 33, which are the columns that have footfall for the streets. Next, we use the `rowSums` function, why not change it from `rowsum`, to get the total sum across times in different streets in the month. We then sort by the total sum that we calculated and print the top and bottom footfalls.
+
+#### Task 2 Section 2
+
+Use `ggplot2` to create a plot displaying three time series of `daily` pedestrian footfall in three locations of your choice. Add two vertical vars to mark *St. Patrick's day* and *Christmas Day*
+
+```{r}
+#| warning: false
+#| fig-width: 8
+#| fig-height: 6
+
+joined_data$dailyDate <- date(joined_data$Time)
+
+joined_data_daily <- joined_data %>%
+  select(dailyDate, 
+         Grafton.Street.CompuB,
+         O.Connell.st.Princes.st.North,
+         Baggot.st.upper.Mespil.rd.Bank
+         ) %>%
+  group_by(dailyDate) %>%
+  distinct() %>%
+  summarise(sumGrafton = sum(Grafton.Street.CompuB),
+            sumOConnell = sum(O.Connell.st.Princes.st.North),
+            sumBaggot = sum(Baggot.st.upper.Mespil.rd.Bank))
+
+# Create separate dataframes for each location
+grafton_data <- joined_data_daily %>%
+  select(-sumOConnell, -sumBaggot) %>%
+  mutate(location = "Grafton Street",
+         footfall = sumGrafton) %>%
+  select(-sumGrafton)
+
+oconnell_data <- joined_data_daily %>%
+  select(-sumGrafton, -sumBaggot) %>%
+  mutate(location = "O'Connell Street",
+         footfall = sumOConnell) %>%
+  select(-sumOConnell)
+
+baggot_data <- joined_data_daily %>%
+  select(-sumGrafton, -sumOConnell) %>%
+  mutate(location = "Baggot Street",
+         footfall = sumBaggot) %>%
+  select(-sumBaggot)
+
+# Combine all dataframes
+joined_data_daily_long <- rbind(grafton_data, oconnell_data, baggot_data)
+# Create the plot
+ggplot(joined_data_daily_long, aes(x = dailyDate,
+                                   y = footfall,
+                                   color = location)) +
+  geom_line() +
+  scale_color_manual(
+    values = c("Grafton Street" = "purple",
+               "O'Connell Street" = "black",
+               "Baggot Street" = "steelblue")
+  ) +
+  labs(
+    title = "Daily Pedestrian Traffic vs. Famous Streets",
+    x = "Date",
+    y = "Daily Footfall",
+    color = "Location"
+  ) +
+  geom_vline(
+    xintercept = as.Date(c("2023-12-25", "2023-03-17")),
+    color = "red",
+    size = 1,
+    lty = 'dashed'
+  ) +
+  annotate(
+    geom = "text",
+    x = as.Date("2023-03-17"),
+    y = 160000,
+    label = "St. Patrick's Day",
+    hjust = -0.1,
+    colour='red'
+  ) +
+  annotate(
+    geom = "text",
+    x = as.Date("2023-12-25"),
+    y = 160000,
+    label = "Christmas",
+    hjust = 1.1,
+    colour='red'
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+For this to be easier, we want to add a dailyDate column that has the date. This way we can easily calculate sums over all the rows belonging to a single day in our data set. We choose the only names of streets that I recognize, take the distinct rows, which is unnecessary but probably good practice, and then we create new columns based on the daily traffic of each street. We then create a new data frame with new columns such as the location and better column name footfall. We combine all the data frames so that we have a nice structure in order to plot with. We have the daily date on the x axis, the total daily footfall per street on the y axis, and the color of the line is based on the location column we assigned to each street earlier. We then add our vertical lines for St. Patrick's Day and Christmas day with labels for clarity.
+
+#### Task 2 Section 3
+
+Create a table displaying the minimum and maximum temperature, the mean daily precipitation amount, and the mean daily wind speed by season (Winter: December to February, Spring: March to May, Summer: June to August, and Autumn: September to November).
+
+```{r}
+#| label: "2.3"
+
+joined_data_seasonal <- joined_data %>%
+  mutate(season = case_when(
+    moty %in% c(12, 1, 2) ~ "winter",
+    moty %in% c(3, 4, 5) ~ "spring",
+    moty %in% c(6, 7, 8) ~ "summer",
+    moty %in% c(9, 10, 11) ~ "autumn"
+  )) %>%
+  group_by(dailyDate) %>%
+  mutate(daily_precipitation = mean(precipitation_amount, na.rm = TRUE),
+         daily_windspeed = mean(wind_speed, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(season) %>%
+  mutate(seasonal_precipitation = mean(daily_precipitation, na.rm = TRUE),
+         seasonal_windspeed = mean(daily_windspeed, na.rm = TRUE),
+         max_temp_seasonal = max(air_temperature),
+         min_temp_seasonal = min(air_temperature))
+
+# create table
+seasonal_summary <- joined_data_seasonal %>%
+  group_by(season) %>%
+  summarise(
+    mean_daily_precip = first(seasonal_precipitation),
+    mean_daily_wind = first(seasonal_windspeed),
+    max_temp = first(max_temp_seasonal),
+    min_temp = first(min_temp_seasonal)
+  ) %>%
+  mutate(across(where(is.numeric), ~round(., 2)))
+
+# Display the table
+seasonal_summary %>%
+  kable(
+    col.names = c("Season",
+                  "Min Temp",
+                  "Max Temp",
+                  "Mean Daily Precip",
+                  "Mean Daily Wind"),
+    caption = "Seasonal Weather Summary"
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "bordered"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+We first need to assign a season to each month, which we do using the `case_when` function. Once this is done it is necessary to get the mean for the dailyDate grouped specifically as this is not the same as taking the mean across the whole column. (A quick proof is if if day 1 has two values and day 2 has one value, unless we get the mean for the day first then day 1 will have an out sized impact. This is necessary to account for due to the possible presence of NA values). Once this is done we then ungroup based on dailyDate and then regroup based on the season column. We then add a column for each parameter we want to check using the mutate function. When building the table we find that we still have 365 days, which we do not need, so we just take the first instance of each season as the necessary values will all be the same for the same season. We use kable to make nicer looking tables.
+
+### Task 3: Creativity
+
+#### Task 3 Section 1 Graph
+
+Do something interesting with these data! Create one plot and one table showing something we have not discovered above already and outline your findings (the plot and the table must display different findings).
+
+```{r}
+#| label: "3.1.plot"
+#| warning: false
+#| fig-width: 8
+#| fig-height: 6
+
+# see how precipitation impacts footfall
+# show for popular shopping district using grafton street
+# have the line/point coloured black for below avg seasonal percipitation
+# have the line/point coloured red for above avg seasonal percipitation
+
+creative_data_1 <- joined_data_seasonal %>%
+  select(dailyDate, 
+         season,
+         daily_precipitation,
+         seasonal_precipitation)
+
+creative_data_1 <- creative_data_1 %>%
+  inner_join(grafton_data, join_by(dailyDate)) %>%
+  distinct()
+
+# postitive values of distance means more daily rain than seasonal
+creative_data_1 <- creative_data_1 %>%
+  mutate(
+    d_from_avg_percipitation = daily_precipitation - seasonal_precipitation,
+    rainfall = ifelse(d_from_avg_percipitation >= 0,
+                                        "Higher Rainfall",
+                                        "Lower Rainfall")
+    )
+
+creative_data_1 <- creative_data_1 %>%
+  group_by(season) %>%
+  mutate(seasonal_footfall = mean(footfall, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(dist_seasonal_footfall = footfall - seasonal_footfall)
+
+creative_data_1 <- creative_data_1 %>%
+  mutate(dist_seasonal_footfall = scale(dist_seasonal_footfall))
+
+ggplot(data = creative_data_1) +
+  geom_ribbon(aes(x = dailyDate,
+                  ymin = 0,
+                  ymax = dist_seasonal_footfall,
+                  fill = rainfall),
+              alpha = 0.5) +
+  geom_line(aes(x = dailyDate,
+                y = dist_seasonal_footfall,
+                color = rainfall)) +
+  scale_fill_manual(values = c("Lower Rainfall" = "black",
+                               "Higher Rainfall" = "red")) +
+  scale_color_manual(values = c("Lower Rainfall" = "black",
+                                "Higher Rainfall" = "red")) +
+  ylab("Scaled Footfall against Season") +
+  xlab("Date") +
+  labs(title = "Daily Footfall as Impacted by Precipitation") +
+  theme_minimal()
+```
+
+We take the necessary values for what we are looking to do, so we only select those columns. We take the Grafton street data that was used previously. We take distinct values in order to keep it to the summed daily date rather than an hourly basis, it is unnecessary but probably best practice. We define the distance from average precipitation by taking that days precipitation away from the mean that we calculated earlier. If that number is positive it means the day experienced more rainfall than expected, and if it is negative it is less rainfall than expected. We calculate the seasonal footfall, due to there seeming to be a large seasonal affect for footfall, and calculate the distance from seasonal footfall using the same method as we did for precipitation. We graph the data and see that it is not as large a confounding impact as I expected. We also scale the distance to have a somewhat fair comparison between the seasons. However seasons are still clearly visible. Personally I would not go shopping on grafton street if the weather is not dry.
+
+#### Section 2 Table
+
+```{r}
+
+creative_data_2 <- joined_data_seasonal %>%
+  select(dailyDate,
+         seasonal_windspeed,
+         daily_windspeed,
+         season)
+
+creative_data_2 <- creative_data_2 %>%
+  inner_join(grafton_data, join_by(dailyDate)) %>%
+  distinct()
+
+# Calculate overall mean footfall first
+overall_mean_footfall <- mean(creative_data_2$footfall, na.rm = TRUE)
+
+# Calculate wind speed quartiles and compare footfall to mean
+creative_data_2 <- creative_data_2 %>%
+  mutate(wind_quartile = cut(daily_windspeed, 
+                            breaks = quantile(daily_windspeed,
+                                              probs = seq(0, 1, 0.25),
+                                              na.rm = TRUE),
+                            labels = c("Q1 (Lowest)",
+                                       "Q2", 
+                                       "Q3", 
+                                       "Q4 (Highest)"),
+                            include.lowest = TRUE))
+
+# Create summary table
+quartile_summary <- creative_data_2 %>%
+  group_by(wind_quartile) %>%
+  summarise(
+    mean_footfall_comparison = ifelse(
+      mean(footfall, na.rm = TRUE) > overall_mean_footfall, 
+                                    "Above Average", "Below Average"),
+    wind_speed_range = paste(
+      round(min(daily_windspeed, na.rm = TRUE), 2),
+      "to",
+      round(max(daily_windspeed, na.rm = TRUE), 2)
+    )
+  )
+
+kable(quartile_summary,
+      col.names = c("Wind Speed Quartile",
+                    "Footfall Relative to Mean", 
+                    "Wind Speed Range (m/s)"),
+      caption = "Daily Footfall Comparison by Wind Speed Quartile"
+      ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "bordered"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+We select for the columns we need, do the same joining for Grafton street data as we did previously. We calculate the overall mean footfall as a baseline, and remove NA from the calculation to not skew results. We break the wind speed into respective quartiles, from lowest speed to highest speed. We group the data set by wind quartiles, and calculate if the mean footfall is above or below the overall mean footfall. We print the range of the quartiles, you will see the range intersects due to the fact the lowest quartile ranges are based seasonally. So the lowest quartile value for summer might be 3.38 while the lowest quartile value for winter may be 8.17. We can see that the footfall relative to the mean based on season is actually what I expected this time. The less windy days meant that footfall was above average, while the more windy days had footfall before average. This may be due to people having thin hair, and not wanting to have it blowing all over the place while they are shopping on Grafton street.
