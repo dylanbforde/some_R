@@ -1,0 +1,299 @@
+---
+title: "Assignment 1"
+format: pdf
+editor: visual
+author: "Dylan Forde"
+header-includes:
+  \usepackage{placeins}
+---
+
+## Task 1: Manipulation
+
+1.  **Load the data set crim_off_cat_2022.xslx.**
+
+Using the `read_excel()` function from the `readxl` library, the data set `crim_off_cat_2022.xlsx` is read and saved in the environment. There are no specific changes such as changing the NA values, starting from a certain row, or so on.
+
+```{r}
+#| label: "1.1"
+#| output: False
+#| results: False
+# Load the dataset using the read_excel function from the readxl library,
+# there is no point importing the library fully as we will only need that function
+# we are not allowed to immediately change the colon to NA, or cut
+# to the relevant rows and columns
+crim_off_cat_2022 <- readxl::read_excel("crim_off_cat_2022.xlsx")
+
+```
+
+2.  **What is the size and structure of this data set?**
+
+The number of rows is `52` in the full data set, however there are a lot of empty values in the first through eight columns, as that was just the description in the excel file and in reality values start from row `9`. There are `22` columns in the data set. The structure is that all columns so far are converted into the character datatype and will need to be changed.
+
+```{r}
+#| label: "1.2"
+# Check the structure of the dataset
+dim(crim_off_cat_2022)
+# 52 rows and 22 columns from the Environments "52 obs. of 22 variables"
+```
+
+The structure specifically using `str` and having `strict.width` being `wrap` in order to present it nicely on screen. As can be seen, there are 52 rows and 22 columns, all of the `chr` type. There are NA in every column, those will need to be dealt with.
+
+```{r}
+#| label: "1.2.1"
+str(crim_off_cat_2022, strict.width='wrap')
+```
+
+The libraries that are used throughout this assignment, all have been used in class. Functions such as `filter`, `mutate`, `drop_na`, etc. will be used when cleaning and exploring the data set.
+
+```{r}
+#| label: "libraries"
+#| output: False
+# Helper libraries: All verified in lecture
+library(dplyr) 
+library(tidyr) 
+library(ggplot2) 
+library(ggthemes)
+library(kableExtra)
+```
+
+Reduce the data set to only the subset involving the observations. Furthermore, rename the columns in the data set which are the values of the number `8` row in the original data set. It also verifies that the names have been correctly applied to the new data set.
+
+```{r}
+#| label: "cleaning data set 1"
+#| output: false
+# reduce the dataset to the subset that includes all of the observations
+cleaned_crim <- crim_off_cat_2022[9:nrow(crim_off_cat_2022),]
+# set the column names of new data set to row 8 in the data set
+colnames(cleaned_crim) <- crim_off_cat_2022[8,]
+# double check that I did that correctly
+names(cleaned_crim)
+```
+
+3.  **Change the column name of the first column into country**.
+
+The name `ICCS (Labels)` is the default column name for the data set, it is changed for convenience to `Country`. The `mutate` and `select` functions are used to create a new column named `Country` (where values are the same as `ICCS (Labels)`) and the old column is dropped by using the `-` modifier in front of the column name.
+
+```{r}
+#| label: "1.3"
+#| output: false
+# rather than using rename I just created a new column named country
+# then I dropped the old column name for the countries
+cleaned_crim <- cleaned_crim %>%
+  mutate(Country = cleaned_crim$`ICCS (Labels)`) %>%
+  select(-`ICCS (Labels)`)
+
+# double check the order as mutate puts country as the last column
+print(names(cleaned_crim))
+```
+
+4.  **Remove the columns that were specified in the assignment**.
+
+Remove the columns that were asked to be removed. This is done through the `-` modifier, it is appended in front of the column name and causes the columns to not be selected in the new data frame.
+
+```{r}
+#| label: "1.4"
+# select all columns but the ones that are not selected by putting 
+# '-' in front of the column name
+cleaned_crim_selected <- cleaned_crim %>%
+  select(-`Child pornography`, 
+         -Rape, 
+         -`Sexual assault`, 
+         -Theft,
+         -`Theft of a motorized vehicle or parts thereof`, 
+         -Burglary,
+         -`Burglary of private residential premises`)
+
+# have a look at the first few rows of the data set
+head(cleaned_crim_selected)
+```
+
+Reordered the data set so that the `Country` column is the left-most column in order to make things easier to inspect in the future.
+
+```{r}
+#| label: "re-arrange order"
+#| output: false
+# select the country column first and then every else
+# country will be back at the front and data easier to see
+cleaned_crim_selected <- cleaned_crim_selected %>%
+  select(Country, everything())
+# double check it was done correctly
+head(cleaned_crim_selected)
+```
+
+The current `cleaned_crim_selected` data set is using a `:` for missing data, however R uses the built in `NA`. To stay consistent the colon is replaced by the built-in `NA`.
+
+```{r}
+#| label: "Convert substitute NA"
+#| warning: false
+# warning for using across() as its deprecated (still works though)
+# for every row in every column in the dataset if the value is a colon
+# then remove the colon and replace it with a NA
+crim_missing_data_replaced <- cleaned_crim_selected %>%
+  mutate(across(everything(), na_if, ":"))
+
+head(crim_missing_data_replaced)
+```
+
+5.  & 6. **Remove the countries with missing data and list them**.
+
+Use the `drop_na()` function from the `tidyr` package to drop rows with `NA` as one of the values. Take the set difference to find what rows were removed, specifying the country names.
+
+```{r}
+#| label: "1.5 & 1.6"
+# Part 6:-------------------------
+# drop the rows where NA is present
+crim_countries_with_na_dropped <- crim_missing_data_replaced %>% drop_na()
+# Part 5:-------------------------
+# take the set of countries that are different between the two data set
+missing_found <- setdiff((crim_missing_data_replaced), 
+                         (crim_countries_with_na_dropped))
+
+kbl(missing_found$Country, full_width=FALSE,
+    caption = "NA found in Country Data") %>%
+  kable_classic_2()
+```
+
+\FloatBarrier
+
+7.  **Add a column containing the overall offence record for each country**
+
+Take the sum across each row using `rowSums`, and it is more generalisable if the data set is changed. First the columns other than the `country` name are changed to numeric columns.
+
+```{r}
+#| label: "1.7"
+# change the character datatype to numeric across the columns apart from Country
+# also remove NA can be false here as removed previously
+crim_countries_overallOffences <- crim_countries_with_na_dropped %>%
+  mutate(across(-Country, as.numeric)) %>%
+  group_by(Country) %>%
+  mutate(overallOffences = rowSums(across(where(is.numeric)), na.rm = TRUE))
+```
+
+\FloatBarrier
+
+8.  **How many observations and variables are there in this new data set?**
+
+There are 14 countries with 16 variables (including the country names).
+
+```{r}
+#| label: "1.8"
+# check the structure of the new data set
+dim(crim_countries_overallOffences)
+```
+
+\FloatBarrier
+
+## Task 2: Analysis
+
+1.  **Provide a table with country names ordered by gang participation**
+
+Select only the `Country` name and `gang participation rates`, order them from high to low, and output as a table. The decimals are rounded to one significant figure.
+
+```{r}
+#| label: "2.1"
+# select the country column and organised crime
+# then change the organised crime column to rounded values
+# then arrange these by high to low
+crim_countries_gang_participation <- crim_countries_overallOffences %>%
+  select(c(Country, `Participation in an organized criminal group`)) %>%
+  mutate(`Participation in an organized criminal group` = 
+           round(`Participation in an organized criminal group`, 1)) %>%
+  arrange(desc(`Participation in an organized criminal group`))
+
+kbl(crim_countries_gang_participation, full_width = FALSE) %>%
+  kable_classic_2()
+```
+
+\FloatBarrier
+
+2.  **Which country has the highest participation per capita?**
+
+Spain is the country with the highest participation rate per capita. `Slice_max` is used to take the top `n=1` entries. As the group rate is ordered highest to lowest, the top value will be the highest country participation rate.
+
+```{r}
+#| label: "2.2"
+# dataset is still grouped by country from previously so ungroup
+# we can then rearrage by highest to lowest
+# use the new top_n function to grab the max value
+# return the name only
+crim_countries_gang_participation_max <- crim_countries_gang_participation %>%
+  ungroup() %>%
+  arrange(desc(`Participation in an organized criminal group`)) %>%
+  slice_max(`Participation in an organized criminal group`, n=1)
+
+
+print(c("The highest gang particpation country is:",
+        crim_countries_gang_participation_max$Country), quote = FALSE)
+
+```
+
+3.  **Create a plot displaying relationship between robbery and unlawful acts involving drugs or precursors.**
+
+Use ggplot to make a scatter plot with labels, coloured by the `Country`. The x and y axis are labelled respectively, we label countries, however if the text would overlap the text is removed and it is left to the legend. This will prevent a cluttered graph.
+
+```{r}
+#| label: "2.3"
+#| fig-width: 7
+#| fig-height: 5
+# basic ggplot with a nice theme, and overlapping names removed
+ggplot(crim_countries_overallOffences, 
+       aes(x=Robbery,
+           y=`Unlawful acts involving controlled drugs or precursors`, 
+           col=Country)) +
+  geom_point() +
+  geom_text(label=crim_countries_overallOffences$Country,
+            check_overlap = TRUE) +
+  labs(title = "Robbery vs Drugs by Country") +
+  xlab("Robbery") +
+  ylab("Drug Use") +
+  theme_pander()
+```
+
+## Task 3: Creativity
+
+### Plot 1
+
+I wonder if `drug offences` have a notable disconnect from `acts against computer systems`, there should be no correlation or obvious pattern. We use a log scale to have a better fit on the distributions of data.
+
+```{r}
+#| label: "3.1"
+#| fig-width: 7
+#| fig-height: 5
+
+ggplot(crim_countries_overallOffences, 
+       aes(x=`Unlawful acts involving controlled drugs or precursors`, 
+           y=`Acts against computer systems`, 
+           col=Country)) +
+  geom_point() +
+  geom_text(label=crim_countries_overallOffences$Country,
+            check_overlap = FALSE) +
+  labs(title = "Drug Use vs. Cyber Crime") +
+  scale_x_log10() +
+  scale_y_log10() +
+  xlab("Drug Use") +
+  ylab("Cyber Crimes") +
+  theme_pander()
+```
+
+The graph looks quite like noise, there does not seem to be any obvious trend between the two groups. This might be surprising as some Cyber Crime could be attributed to 'selling' drugs, however this is not noticeable.
+
+### Plot 2
+
+It would make sense that `organised criminal groups` have to launder the money they make, therefore there should be some trend between the number of criminals caught and the number of people caught `Money Laundering`.
+
+```{r}
+#| label: "3.2"
+#| fig-width: 7
+#| fig-height: 5
+
+ggplot(crim_countries_overallOffences, 
+       aes(x=`Participation in an organized criminal group`, 
+           y=`Money laundering`)) +
+  geom_density_2d_filled() +
+  scale_color_brewer() +
+  theme_pander()
+  
+         
+```
+
+It seems like countries that have a low participation in organised crime manage to catch the money laundering that the organised crime groups obviously have to engage in. However for countries with higher participation in organised crime, they do not seem to be catching the instances of money laundering. It's possible those groups lease the money laundering to people in other countries explaining why some countries with lower participation in organised crime have higher rates of money laundering. It would be interesting to further look at corruption and bribery in those countries.
